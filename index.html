@@ -1,0 +1,2018 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--
+      BUBBLE RESCUE - Full Single-File HTML5 Canvas & Web Audio API Game
+      
+      CONTROLS:
+      - Pointer (Trackpad / Mouse / Touch): Direct navigation for player bubble.
+      - Nudge (Space / On-screen button): Air burst pushing player away from nearest hazard.
+      - Splash (Shift / On-screen button): Water ripple pushing away surrounding toys & whirlpools.
+      - Super Float (S key / On-screen button): Temporary invulnerability shield (10s cooldown).
+      - Pause (P or Esc / On-screen button): Pause / Resume game.
+
+      LEVEL TABLE & PROGRESSION:
+      Lvl 1  | Warm Soap Soak        | D: 25s | Drains: slow  | Toys: 2 | Mechanics: Tutorial Hint, First-hit Shield
+      Lvl 2  | Rubber Duckie Rush    | D: 25s | Drains: slow+ | Toys: 4 | Mechanics: Baby Rescuers, First-hit Shield
+      Lvl 3  | Faucet Drip Hazard    | D: 30s | Drains: med   | Toys: 5 | Mechanics: Telegraphed Faucet Drips, First-hit Shield
+      Lvl 4  | Slippery Soap Shift   | D: 30s | Drains: med   | Toys: 6 | Mechanics: Time-Slow Pickups
+      Lvl 5  | GIANT SOAP SWEEP      | D: 35s | Drains: med+  | Toys: 6 | Mechanics: BOSS - Sweeping Giant Soap Bar
+      Lvl 6  | Suds & Whirlpool Surge| D: 35s | Drains: fast  | Toys: 7 | Mechanics: Multiple Whirlpools + Pickups
+      Lvl 7  | Tub Turbulence        | D: 40s | Drains: fast  | Toys: 8 | Mechanics: Frequent Faucet Drops
+      Lvl 8  | Foam Frenzy           | D: 40s | Drains: v.fast| Toys: 8 | Mechanics: High speed currents & Time-slows
+      Lvl 9  | Charybdis Drain Hazard| D: 45s | Drains: extreme|Toys: 9 | Mechanics: Intense suction + Drips + Toys
+      Lvl 10 | THE ULTIMATE TUB SWEEP| D: 50s | Drains: max   | Toys: 10| Mechanics: BOSS Sweeps + Max Hazards (Winnable!)
+    -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bubble Rescue</title>
+    <style>
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        body {
+            background-color: #090d16;
+            color: #f8fafc;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .hidden {
+            display: none !important;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            max-width: 1200px;
+            max-height: 900px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+            cursor: crosshair;
+        }
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.82);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 9999px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.37);
+        }
+        .glass-card {
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+        }
+        #hud {
+            position: absolute;
+            top: 12px;
+            left: 16px;
+            right: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            z-index: 10;
+            font-weight: 700;
+            font-size: 14px;
+        }
+        .hud-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            padding: 6px 16px;
+        }
+        .btn-ui {
+            pointer-events: auto;
+            cursor: pointer;
+            border: none;
+            outline: none;
+            color: #fff;
+            font-weight: 800;
+            border-radius: 14px;
+            padding: 8px 14px;
+            transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.2s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        .btn-ui:active {
+            transform: scale(0.93);
+        }
+        .btn-game {
+            background: linear-gradient(135deg, #0284c7, #0369a1);
+            box-shadow: 0 4px 14px rgba(2, 132, 199, 0.4);
+        }
+        .btn-action {
+            background: linear-gradient(135deg, #e11d48, #be123c);
+            box-shadow: 0 4px 14px rgba(225, 29, 72, 0.4);
+        }
+        .btn-shield {
+            background: linear-gradient(135deg, #059669, #047857);
+            box-shadow: 0 4px 14px rgba(5, 150, 105, 0.4);
+        }
+        #controls-overlay {
+            position: absolute;
+            bottom: 16px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 12px;
+            pointer-events: none;
+            z-index: 10;
+        }
+        .modal-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            text-align: center;
+            z-index: 20;
+        }
+        .title-text {
+            font-size: 42px;
+            font-weight: 900;
+            background: linear-gradient(135deg, #38bdf8, #34d399, #fbbf24);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 8px;
+            text-shadow: 0 4px 20px rgba(56, 189, 248, 0.3);
+        }
+        .sub-text {
+            color: #cbd5e1;
+            font-size: 14px;
+            max-width: 440px;
+            margin-bottom: 20px;
+            line-height: 1.5;
+        }
+        .instructions-box {
+            background: rgba(15, 23, 42, 0.75);
+            border: 1px solid #334155;
+            border-radius: 14px;
+            padding: 14px 18px;
+            text-align: left;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 20px;
+            max-width: 400px;
+            width: 100%;
+        }
+        .instructions-box div {
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .instructions-box b {
+            color: #f1f5f9;
+        }
+        .badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 800;
+        }
+        .badge-gold { background: #eab308; color: #451a03; }
+        .badge-silver { background: #94a3b8; color: #0f172a; }
+        .badge-bronze { background: #d97706; color: #451a03; }
+        
+        /* Debug Console Overlay */
+        #debug-overlay {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.85);
+            color: #4ade80;
+            font-family: monospace;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            z-index: 100;
+            border: 1px solid #22c55e;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <!-- Canvas -->
+        <canvas id="gameCanvas"></canvas>
+
+        <!-- HUD Header -->
+        <div id="hud">
+            <div class="hud-group glass-panel">
+                <span>Bubbles: <span id="lives-display" style="color: #38bdf8;">3</span></span>
+                <span style="color: #475569;">|</span>
+                <span>Score: <span id="score-display" style="color: #fbbf24;">0</span></span>
+            </div>
+            <div class="hud-group glass-panel" style="color: #7dd3fc;">
+                <span>Lvl <span id="level-display" style="color: #fff; font-size: 16px;">1</span>: <span id="level-title">Warm Soap Soak</span></span>
+            </div>
+            <div class="hud-group glass-panel" style="gap: 12px;">
+                <span style="color: #34d399;">Multi: <span id="multi-display">x1</span></span>
+                <span style="color: #475569;">|</span>
+                <span style="color: #f472b6;">Saved: <span id="rescued-display">0</span></span>
+                <button id="audio-toggle" class="btn-ui glass-panel" style="padding: 4px 10px; font-size: 14px;">🔊</button>
+                <button id="pause-btn" class="btn-ui glass-panel" style="padding: 4px 10px; font-size: 14px;">⏸️</button>
+            </div>
+        </div>
+
+        <!-- Touch / Action Controls -->
+        <div id="controls-overlay">
+            <button id="btn-nudge" class="btn-ui btn-action">
+                <span>💨 NUDGE</span>
+                <span style="font-size: 9px; font-weight: 400; opacity: 0.85;">(Space / Tap)</span>
+            </button>
+            <button id="btn-splash" class="btn-ui btn-game">
+                <span>💦 SPLASH</span>
+                <span style="font-size: 9px; font-weight: 400; opacity: 0.85;">(Shift / Tap)</span>
+            </button>
+            <button id="btn-shield" class="btn-ui btn-shield">
+                <span>🛡️ SUPER FLOAT</span>
+                <span id="shield-cooldown" style="font-size: 9px; font-weight: 400; opacity: 0.85;">READY</span>
+            </button>
+        </div>
+
+        <!-- Menu Screen -->
+        <div id="menu-overlay" class="modal-overlay glass-card">
+            <h1 class="title-text">BUBBLE RESCUE</h1>
+            <p class="sub-text">
+                Steer your delicate soap bubble around the bathtub! Rescue tiny baby bubbles, dodge floating bath toys, avoid sharp porcelain walls and the draining whirlpool.
+            </p>
+            
+            <div class="instructions-box">
+                <div>🎯 <b>Trackpad / Mouse / Touch:</b> Bubble smoothly follows pointer.</div>
+                <div>💨 <b>Nudge (Space):</b> Air burst away from closest hazard.</div>
+                <div>💦 <b>Splash (Shift):</b> Wave pushes away toys & whirlpools.</div>
+                <div>👶 <b>Rescue Babies:</b> Touch tiny bubbles for combo multipliers (x2-x5)!</div>
+                <div>🛡️ <b>Super Float (S):</b> Invulnerability shield (10s CD).</div>
+            </div>
+
+            <button id="start-btn" class="btn-ui btn-game" style="padding: 14px 32px; font-size: 18px; border-radius: 999px;">
+                START BATH TIME! 🛁
+            </button>
+            <div style="margin-top: 14px; font-size: 12px; color: #94a3b8;">
+                High Score: <span id="high-score-display" style="color: #fbbf24; font-weight: 800;">0</span>
+            </div>
+        </div>
+
+        <!-- Modal Message Overlay -->
+        <div id="msg-overlay" class="modal-overlay glass-card hidden">
+            <h2 id="msg-title" style="font-size: 32px; font-weight: 900; color: #fff; margin-bottom: 6px;">LEVEL CLEARED!</h2>
+            <p id="msg-desc" style="color: #cbd5e1; font-size: 15px; margin-bottom: 14px;">The water level drops further into chaos...</p>
+            <div id="msg-stats" style="font-family: monospace; font-size: 16px; color: #fbbf24; margin-bottom: 20px; line-height: 1.6;"></div>
+            <button id="msg-btn" class="btn-ui btn-game" style="padding: 12px 28px; font-size: 16px; border-radius: 999px;">
+                CONTINUE
+            </button>
+        </div>
+
+        <!-- Debug Overlay (Appears only if ?test=1) -->
+        <div id="debug-overlay" class="hidden"></div>
+    </div>
+
+<script>
+/**
+ * BUBBLE RESCUE - Full Game Script
+ */
+
+// --- SAFE LOCALSTORAGE WRAPPER ---
+const Storage = {
+    get(key, fallback) {
+        try {
+            const val = localStorage.getItem(key);
+            return val !== null ? JSON.parse(val) : fallback;
+        } catch (e) {
+            return fallback;
+        }
+    },
+    set(key, val) {
+        try {
+            localStorage.setItem(key, JSON.stringify(val));
+        } catch (e) {}
+    }
+};
+
+// --- SYNTHESIZED WEB AUDIO SYSTEM ---
+class SoundController {
+    constructor() {
+        this.ctx = null;
+        this.enabled = Storage.get('bubble_rescue_audio', true);
+        this.musicGain = null;
+        this.isMusicPlaying = false;
+        this.musicStep = 0;
+        this.nextNoteTime = 0;
+    }
+
+    init() {
+        if (this.ctx) {
+            if (this.ctx.state === 'suspended') this.ctx.resume();
+            return;
+        }
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return;
+        this.ctx = new AudioContext();
+
+        this.musicGain = this.ctx.createGain();
+        this.musicGain.gain.value = 0.08;
+        this.musicGain.connect(this.ctx.destination);
+    }
+
+    toggle() {
+        this.enabled = !this.enabled;
+        Storage.set('bubble_rescue_audio', this.enabled);
+        if (this.enabled) this.init();
+        return this.enabled;
+    }
+
+    playPop() {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(900, this.ctx.currentTime + 0.04);
+        osc.frequency.exponentialRampToValueAtTime(120, this.ctx.currentTime + 0.1);
+
+        gain.gain.setValueAtTime(0.3, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.1);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.1);
+    }
+
+    playSplash() {
+        if (!this.enabled || !this.ctx) return;
+        const bufferSize = this.ctx.sampleRate * 0.2;
+        const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+
+        const noise = this.ctx.createBufferSource();
+        noise.buffer = buffer;
+        const filter = this.ctx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
+        filter.frequency.linearRampToValueAtTime(200, this.ctx.currentTime + 0.2);
+
+        const gain = this.ctx.createGain();
+        gain.gain.setValueAtTime(0.35, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(this.ctx.destination);
+        noise.start();
+    }
+
+    playNudge() {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(180, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.12);
+
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.12);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.12);
+    }
+
+    playRescue(pitchMultiplier = 1) {
+        if (!this.enabled || !this.ctx) return;
+        const baseFreq = 523.25 * pitchMultiplier; // C5 pitch shifted by multiplier
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(baseFreq, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.5, this.ctx.currentTime + 0.15);
+
+        gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.15);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.15);
+    }
+
+    playNearMiss() {
+        if (!this.enabled || !this.ctx) return;
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(880, this.ctx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(1320, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.15, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.08);
+    }
+
+    playGurgle(proximity) { // 0 to 1
+        if (!this.enabled || !this.ctx || proximity <= 0) return;
+        if (Math.random() > 0.15) return; // Gentle random bubble ticks
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(60 + Math.random() * 40, this.ctx.currentTime);
+        osc.frequency.linearRampToValueAtTime(30, this.ctx.currentTime + 0.08);
+
+        gain.gain.setValueAtTime(0.15 * proximity, this.ctx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.08);
+
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start();
+        osc.stop(this.ctx.currentTime + 0.08);
+    }
+
+    playWin() {
+        if (!this.enabled || !this.ctx) return;
+        const notes = [523.25, 659.25, 783.99, 1046.50];
+        notes.forEach((freq, idx) => {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.frequency.value = freq;
+            gain.gain.setValueAtTime(0.2, this.ctx.currentTime + idx * 0.08);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + idx * 0.08 + 0.2);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(this.ctx.currentTime + idx * 0.08);
+            osc.stop(this.ctx.currentTime + idx * 0.08 + 0.2);
+        });
+    }
+
+    tickMusic(dt, drainProgress) {
+        if (!this.enabled || !this.ctx) return;
+        if (this.ctx.currentTime >= this.nextNoteTime) {
+            const scale = [261.63, 293.66, 329.63, 392.00, 440.00]; // C Major Pentatonic
+            const note = scale[this.musicStep % scale.length];
+            
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.value = note;
+            
+            gain.gain.setValueAtTime(0.05, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.15);
+
+            osc.connect(gain);
+            gain.connect(this.musicGain);
+            osc.start();
+            osc.stop(this.ctx.currentTime + 0.15);
+
+            // Tempo speeds up slightly as water drains (0.22s down to 0.14s interval)
+            const tempo = 0.22 - drainProgress * 0.08;
+            this.nextNoteTime = this.ctx.currentTime + tempo;
+            this.musicStep++;
+        }
+    }
+}
+
+const audio = new SoundController();
+
+// --- LEVEL BALANCED CONFIGURATIONS ---
+const LEVEL_CONFIGS = [
+    { name: "Warm Soap Soak", duration: 25, drainSpeed: 0.04, obstacles: 2, whirlpools: 1, currentStrength: 0.2, drops: false, boss: false },
+    { name: "Rubber Duckie Rush", duration: 25, drainSpeed: 0.05, obstacles: 4, whirlpools: 1, currentStrength: 0.3, drops: false, boss: false },
+    { name: "Faucet Drip Hazard", duration: 30, drainSpeed: 0.06, obstacles: 5, whirlpools: 1, currentStrength: 0.4, drops: true, boss: false },
+    { name: "Slippery Soap Shift", duration: 30, drainSpeed: 0.07, obstacles: 6, whirlpools: 2, currentStrength: 0.5, drops: true, boss: false },
+    { name: "GIANT SOAP SWEEP", duration: 35, drainSpeed: 0.08, obstacles: 6, whirlpools: 2, currentStrength: 0.6, drops: true, boss: true },
+    { name: "Suds & Whirlpools", duration: 35, drainSpeed: 0.09, obstacles: 7, whirlpools: 3, currentStrength: 0.7, drops: true, boss: false },
+    { name: "Tub Turbulence", duration: 40, drainSpeed: 0.10, obstacles: 8, whirlpools: 3, currentStrength: 0.8, drops: true, boss: false },
+    { name: "Foam Frenzy", duration: 40, drainSpeed: 0.12, obstacles: 8, whirlpools: 4, currentStrength: 1.0, drops: true, boss: false },
+    { name: "Charybdis Drain", duration: 45, drainSpeed: 0.14, obstacles: 9, whirlpools: 4, currentStrength: 1.2, drops: true, boss: false },
+    { name: "ULTIMATE TUB SWEEP", duration: 50, drainSpeed: 0.16, obstacles: 10, whirlpools: 5, currentStrength: 1.4, drops: true, boss: true }
+];
+
+// --- CANVAS & STATE ENGINE ---
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+let dpr = 1;
+let width = 0, height = 0;
+let gameState = 'MENU'; // MENU, PLAYING, PAUSED, LEVEL_CLEAR, GAME_OVER
+
+let currentLevelIdx = 0;
+let score = 0;
+let lives = 3;
+let levelTimer = 0;
+let tubWaterCapacity = 1.0;
+let waterLevel = 1.0;
+let rescuedCount = 0;
+let comboMultiplier = 1;
+let comboTimer = 0;
+
+let highScore = Storage.get('bubble_rescue_highscore', 0);
+let levelMedals = Storage.get('bubble_rescue_medals', Array(10).fill(null));
+
+// Entity arrays (Pooled/Reused)
+let playerBubble = { x: 0, y: 0, vx: 0, vy: 0, radius: 24, invulnTimer: 0, wobble: 0, stretchX: 1, stretchY: 1, hasBeginnerShield: false };
+let targetPos = { x: 0, y: 0 };
+let whirlpools = [];
+let obstacles = [];
+let babyBubbles = [];
+let faucetDrops = [];
+let pickups = [];
+let foamParticles = [];
+let popParticles = [];
+let waterRipples = [];
+let airBursts = [];
+let popups = [];
+
+// Boss Soap Sweep State
+let bossSweep = { active: false, timer: 0, x: 0, y: 0, width: 0, height: 0, state: 'NONE', warningLineY: 0 };
+
+// Time-slow pickup effect
+let timeSlowTimer = 0;
+
+// Abilities
+let shieldActive = false;
+let shieldTimer = 0;
+let shieldCooldown = 0;
+let nudgeCooldown = 0;
+
+// Pop guard flag per frame
+let hasPoppedThisFrame = false;
+
+// Screen Shake
+let screenShake = 0;
+
+// High-DPI Canvas Resizing
+function resizeCanvas() {
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const rect = canvas.parentElement.getBoundingClientRect();
+    width = rect.width;
+    height = rect.height;
+
+    canvas.width = Math.floor(width * dpr);
+    canvas.height = Math.floor(height * dpr);
+    ctx.scale(dpr, dpr);
+
+    // Keep entities bounded on resize
+    if (playerBubble) {
+        playerBubble.x = Math.max(45, Math.min(width - 45, playerBubble.x));
+        playerBubble.y = Math.max(45, Math.min(height - 45, playerBubble.y));
+    }
+}
+window.addEventListener('resize', resizeCanvas);
+window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 100));
+
+// Blur buttons helper to prevent spacebar double-activation
+function blurActiveElement() {
+    if (document.activeElement && typeof document.activeElement.blur === 'function') {
+        document.activeElement.blur();
+    }
+}
+
+// --- INPUT HANDLERS ---
+function updateTargetPointer(clientX, clientY) {
+    const rect = canvas.getBoundingClientRect();
+    targetPos.x = Math.max(40, Math.min(width - 40, clientX - rect.left));
+    targetPos.y = Math.max(40, Math.min(height - 40, clientY - rect.top));
+}
+
+canvas.addEventListener('mousemove', (e) => updateTargetPointer(e.clientX, e.clientY));
+canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length > 0) updateTargetPointer(e.touches[0].clientX, e.touches[0].clientY);
+    e.preventDefault();
+}, { passive: false });
+
+canvas.addEventListener('touchstart', (e) => {
+    audio.init();
+    if (e.touches.length > 0) updateTargetPointer(e.touches[0].clientX, e.touches[0].clientY);
+}, { passive: true });
+
+// Keyboard Controls
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyP' || e.code === 'Escape') {
+        togglePause();
+        return;
+    }
+    if (gameState !== 'PLAYING') return;
+
+    if (e.code === 'Space') {
+        e.preventDefault();
+        triggerNudge();
+    } else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+        e.preventDefault();
+        triggerSplash();
+    } else if (e.code === 'KeyS') {
+        e.preventDefault();
+        triggerShield();
+    }
+});
+
+// UI Button Listeners
+document.getElementById('btn-nudge').addEventListener('click', (e) => { triggerNudge(); blurActiveElement(); });
+document.getElementById('btn-splash').addEventListener('click', (e) => { triggerSplash(); blurActiveElement(); });
+document.getElementById('btn-shield').addEventListener('click', (e) => { triggerShield(); blurActiveElement(); });
+document.getElementById('start-btn').addEventListener('click', () => { startGame(); blurActiveElement(); });
+document.getElementById('pause-btn').addEventListener('click', () => { togglePause(); blurActiveElement(); });
+document.getElementById('msg-btn').addEventListener('click', () => { handleMsgButtonClick(); blurActiveElement(); });
+
+document.getElementById('audio-toggle').addEventListener('click', () => {
+    const enabled = audio.toggle();
+    document.getElementById('audio-toggle').innerText = enabled ? '🔊' : '🔇';
+    blurActiveElement();
+});
+
+// Auto-pause when tab/window visibility is lost
+document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameState === 'PLAYING') {
+        gameState = 'PAUSED';
+        showMsgOverlay("PAUSED", "Game auto-paused while tab was inactive.", "RESUME");
+    }
+});
+
+// --- ACTION MECHANICS ---
+function triggerNudge() {
+    if (gameState !== 'PLAYING' || nudgeCooldown > 0) return;
+    audio.playNudge();
+    nudgeCooldown = 0.5;
+
+    // Redesigned Nudge: Push AWAY from the NEAREST hazard (wall, toy, or whirlpool)
+    let nearestDist = Infinity;
+    let pushVector = { x: 0, y: -1 }; // Fallback upward burst
+
+    // Check Tub Walls
+    const wallDistLeft = playerBubble.x;
+    const wallDistRight = width - playerBubble.x;
+    const waterTop = height * (1 - waterLevel) * 0.7 + 40;
+    const wallDistTop = playerBubble.y - waterTop;
+    const wallDistBottom = height - playerBubble.y;
+
+    if (wallDistLeft < nearestDist) { nearestDist = wallDistLeft; pushVector = { x: 1, y: 0 }; }
+    if (wallDistRight < nearestDist) { nearestDist = wallDistRight; pushVector = { x: -1, y: 0 }; }
+    if (wallDistTop < nearestDist) { nearestDist = wallDistTop; pushVector = { x: 0, y: 1 }; }
+    if (wallDistBottom < nearestDist) { nearestDist = wallDistBottom; pushVector = { x: 0, y: -1 }; }
+
+    // Check Obstacles & Whirlpools
+    [...obstacles, ...whirlpools].forEach(h => {
+        const dx = playerBubble.x - h.x;
+        const dy = playerBubble.y - h.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < nearestDist) {
+            nearestDist = dist;
+            pushVector = { x: dx / (dist || 1), y: dy / (dist || 1) };
+        }
+    });
+
+    // Apply impulse
+    playerBubble.vx += pushVector.x * 14;
+    playerBubble.vy += pushVector.y * 14;
+
+    airBursts.push({ x: playerBubble.x, y: playerBubble.y, radius: 10, maxRadius: 55, alpha: 1.0 });
+}
+
+function triggerSplash() {
+    if (gameState !== 'PLAYING') return;
+    audio.playSplash();
+
+    waterRipples.push({ x: playerBubble.x, y: playerBubble.y, radius: 10, maxRadius: 140, alpha: 1.0 });
+
+    // Push obstacles away with capped force
+    obstacles.forEach(obs => {
+        const dx = obs.x - playerBubble.x;
+        const dy = obs.y - playerBubble.y;
+        const dist = Math.hypot(dx, dy);
+        if (dist < 160) {
+            const force = (160 - dist) / 12;
+            obs.vx += (dx / (dist || 1)) * force;
+            obs.vy += (dy / (dist || 1)) * force;
+        }
+    });
+}
+
+function triggerShield() {
+    if (gameState !== 'PLAYING' || shieldCooldown > 0) return;
+    shieldActive = true;
+    shieldTimer = 3.0;
+    shieldCooldown = 10.0;
+    audio.playWin();
+}
+
+function addScorePopup(text, x, y, color = '#fbbf24') {
+    popups.push({ text, x, y, alpha: 1.0, vy: -1.5, color });
+}
+
+// --- LEVEL & ENTITY INITIALIZATION ---
+function initLevel(levelIdx) {
+    currentLevelIdx = Math.min(levelIdx, LEVEL_CONFIGS.length - 1);
+    const cfg = LEVEL_CONFIGS[currentLevelIdx];
+
+    tubWaterCapacity = 1.0;
+    waterLevel = 1.0;
+    levelTimer = cfg.duration;
+    comboMultiplier = 1;
+    comboTimer = 0;
+    timeSlowTimer = 0;
+    bossSweep.active = false;
+    bossSweep.state = 'NONE';
+
+    // Safe player respawn
+    playerBubble.x = width / 2;
+    playerBubble.y = height * 0.35;
+    playerBubble.vx = 0;
+    playerBubble.vy = 0;
+    playerBubble.invulnTimer = 2.0; // 2s initial safe float
+    playerBubble.wobble = 0;
+    playerBubble.hasBeginnerShield = currentLevelIdx <= 2; // Beginner forgiveness hit shield for Lv 1-3
+
+    targetPos.x = playerBubble.x;
+    targetPos.y = playerBubble.y;
+
+    // Whirlpools
+    whirlpools = [];
+    for (let i = 0; i < cfg.whirlpools; i++) {
+        whirlpools.push({
+            x: (width * (i + 1)) / (cfg.whirlpools + 1),
+            y: height * 0.72 + (Math.random() * 30 - 15),
+            radius: 35 + Math.random() * 10,
+            rotation: 0,
+            strength: cfg.currentStrength,
+            nearMissCooled: false
+        });
+    }
+
+    // Bath Toys (Capped at 10 max)
+    obstacles = [];
+    const types = ['DUCK', 'SOAP', 'BOAT'];
+    const count = Math.min(cfg.obstacles, 10);
+    for (let i = 0; i < count; i++) {
+        obstacles.push({
+            x: Math.random() * (width - 120) + 60,
+            y: Math.random() * (height * 0.4) + 120,
+            vx: (Math.random() - 0.5) * 1.5,
+            vy: (Math.random() - 0.5) * 1.5,
+            radius: 20 + Math.random() * 8,
+            type: types[i % types.length],
+            angle: Math.random() * Math.PI * 2,
+            tilt: 0,
+            nearMissCooled: false
+        });
+    }
+
+    // Baby Bubbles for Rescue
+    babyBubbles = [];
+    for (let i = 0; i < 4; i++) {
+        spawnBabyBubble();
+    }
+
+    faucetDrops = [];
+    pickups = [];
+
+    // Foam particles
+    foamParticles = [];
+    for (let i = 0; i < 20; i++) {
+        foamParticles.push({
+            x: Math.random() * width,
+            y: Math.random() * height,
+            radius: 3 + Math.random() * 6,
+            vx: (Math.random() - 0.5) * 0.4,
+            vy: (Math.random() - 0.5) * 0.4
+        });
+    }
+
+    // Level 1 Tutorial Prompt
+    if (currentLevelIdx === 0) {
+        addScorePopup("Bubble Follows Pointer!", width / 2, height / 2 - 40, '#38bdf8');
+    }
+
+    updateHUD();
+}
+
+function spawnBabyBubble() {
+    babyBubbles.push({
+        x: Math.random() * (width - 140) + 70,
+        y: Math.random() * (height * 0.5) + 100,
+        vx: (Math.random() - 0.5) * 0.8,
+        vy: (Math.random() - 0.5) * 0.8,
+        radius: 12,
+        pulse: Math.random() * Math.PI
+    });
+}
+
+function updateHUD() {
+    document.getElementById('level-display').innerText = currentLevelIdx + 1;
+    document.getElementById('level-title').innerText = LEVEL_CONFIGS[currentLevelIdx].name;
+    document.getElementById('lives-display').innerText = lives;
+    document.getElementById('score-display').innerText = score;
+    document.getElementById('multi-display').innerText = `x${comboMultiplier}`;
+    document.getElementById('rescued-display').innerText = rescuedCount;
+    document.getElementById('high-score-display').innerText = highScore;
+}
+
+function startGame() {
+    audio.init();
+    score = 0;
+    lives = 3;
+    rescuedCount = 0;
+    document.getElementById('menu-overlay').classList.add('hidden');
+    document.getElementById('msg-overlay').classList.add('hidden');
+    gameState = 'PLAYING';
+    initLevel(0);
+}
+
+function togglePause() {
+    if (gameState === 'PLAYING') {
+        gameState = 'PAUSED';
+        showMsgOverlay("PAUSED", "Take a breath! The bathtub waits.", "RESUME");
+    } else if (gameState === 'PAUSED') {
+        gameState = 'PLAYING';
+        document.getElementById('msg-overlay').classList.add('hidden');
+    }
+}
+
+function showMsgOverlay(title, desc, btnText, statsHtml = "") {
+    document.getElementById('msg-title').innerText = title;
+    document.getElementById('msg-desc').innerText = desc;
+    document.getElementById('msg-stats').innerHTML = statsHtml;
+    document.getElementById('msg-btn').innerText = btnText;
+    document.getElementById('msg-overlay').classList.remove('hidden');
+}
+
+function handleMsgButtonClick() {
+    if (gameState === 'PAUSED') {
+        gameState = 'PLAYING';
+        document.getElementById('msg-overlay').classList.add('hidden');
+    } else if (gameState === 'LEVEL_CLEAR') {
+        if (currentLevelIdx + 1 < LEVEL_CONFIGS.length) {
+            initLevel(currentLevelIdx + 1);
+            gameState = 'PLAYING';
+            document.getElementById('msg-overlay').classList.add('hidden');
+        } else {
+            // Victory
+            if (score > highScore) {
+                highScore = score;
+                Storage.set('bubble_rescue_highscore', highScore);
+            }
+            showMsgOverlay("GRAND BATH CHAMPION! 🏆", "You rescued all bubbles across all 10 tubs!", "PLAY AGAIN", `Final Score: ${score}`);
+            gameState = 'GAME_OVER';
+        }
+    } else if (gameState === 'GAME_OVER') {
+        startGame();
+    }
+}
+
+// Fixed Pop Engine Handler (At most once per frame guard)
+function popPlayerBubble(reason = "Popped!") {
+    if (hasPoppedThisFrame || gameState !== 'PLAYING' || playerBubble.invulnTimer > 0) return;
+
+    // Beginner forgiveness hit shield check (Lv 1 to 3)
+    if (playerBubble.hasBeginnerShield) {
+        playerBubble.hasBeginnerShield = false;
+        playerBubble.invulnTimer = 1.8;
+        playerBubble.wobble = 1.0;
+        audio.playSplash();
+        addScorePopup("SAVED! (Beginner Shield)", playerBubble.x, playerBubble.y - 20, '#34d399');
+        return;
+    }
+
+    hasPoppedThisFrame = true;
+    audio.playPop();
+    screenShake = 15;
+    lives--;
+
+    // Create pop particles
+    for (let i = 0; i < 18; i++) {
+        popParticles.push({
+            x: playerBubble.x,
+            y: playerBubble.y,
+            radius: 3 + Math.random() * 5,
+            vx: (Math.random() - 0.5) * 9,
+            vy: (Math.random() - 0.5) * 9,
+            alpha: 1.0
+        });
+    }
+
+    updateHUD();
+
+    if (lives <= 0) {
+        if (score > highScore) {
+            highScore = score;
+            Storage.set('bubble_rescue_highscore', highScore);
+        }
+        gameState = 'GAME_OVER';
+        showMsgOverlay("GAME OVER 🧼", `${reason}`, "RETRY BATH", `Final Score: ${score}`);
+    } else {
+        // Safe respawn below water top ceiling
+        const waterTop = height * (1 - waterLevel) * 0.7 + 50;
+        playerBubble.x = width / 2;
+        playerBubble.y = Math.max(waterTop + 60, height * 0.35);
+        playerBubble.vx = 0;
+        playerBubble.vy = 0;
+        playerBubble.invulnTimer = 1.5; // 1.5s post-respawn invulnerability
+        targetPos.x = playerBubble.x;
+        targetPos.y = playerBubble.y;
+    }
+}
+
+// --- MAIN GAME UPDATE ---
+let lastTime = performance.now();
+
+function update(dt) {
+    if (gameState !== 'PLAYING') return;
+
+    hasPoppedThisFrame = false; // Reset per-frame pop guard
+    const cfg = LEVEL_CONFIGS[currentLevelIdx];
+
+    // Decrement timers
+    levelTimer -= dt;
+    waterLevel = Math.max(0, levelTimer / cfg.duration);
+
+    if (nudgeCooldown > 0) nudgeCooldown -= dt;
+    if (playerBubble.invulnTimer > 0) playerBubble.invulnTimer -= dt;
+    if (playerBubble.wobble > 0) playerBubble.wobble -= dt * 2;
+
+    if (shieldTimer > 0) {
+        shieldTimer -= dt;
+        if (shieldTimer <= 0) shieldActive = false;
+    }
+    if (shieldCooldown > 0) {
+        shieldCooldown -= dt;
+        document.getElementById('shield-cooldown').innerText = shieldCooldown > 0 ? `${Math.ceil(shieldCooldown)}s` : 'READY';
+    }
+
+    if (timeSlowTimer > 0) timeSlowTimer -= dt;
+    const speedFactor = timeSlowTimer > 0 ? 0.4 : 1.0; // Slow motion factor
+
+    // Audio Music Tick
+    audio.tickMusic(dt, 1 - waterLevel);
+
+    // Combo Timer Decay
+    if (comboMultiplier > 1) {
+        comboTimer -= dt;
+        if (comboTimer <= 0) {
+            comboMultiplier = 1;
+            updateHUD();
+        }
+    }
+
+    // --- LEVEL CLEAR CHECK & ACCURATE BONUS MATH ---
+    if (levelTimer <= 0) {
+        audio.playWin();
+        const baseClearBonus = 500;
+        const livesBonus = lives * 150;
+        const rescuedBonus = rescuedCount * 50;
+
+        const levelScore = baseClearBonus + livesBonus + rescuedBonus;
+        score += levelScore;
+
+        // Calculate Medal
+        let medal = 'bronze';
+        if (lives === 3 && rescuedCount >= 8) medal = 'gold';
+        else if (lives >= 2 && rescuedCount >= 4) medal = 'silver';
+
+        levelMedals[currentLevelIdx] = medal;
+        Storage.set('bubble_rescue_medals', levelMedals);
+
+        gameState = 'LEVEL_CLEAR';
+        const statsHtml = `
+            <div>Base Clear: +${baseClearBonus}</div>
+            <div>Bubbles Remaining (${lives}): +${livesBonus}</div>
+            <div>Rescues Bonus: +${rescuedBonus}</div>
+            <div style="margin-top:8px; font-weight:bold;">Medal Earned: <span class="badge badge-${medal}">${medal.toUpperCase()}</span></div>
+        `;
+        showMsgOverlay("LEVEL CLEARED! ✨", `Tub drained successfully!`, "NEXT LEVEL", statsHtml);
+        return;
+    }
+
+    // --- PLAYER BUBBLE MOVEMENT & SQUASH/STRETCH ---
+    const dx = targetPos.x - playerBubble.x;
+    const dy = targetPos.y - playerBubble.y;
+    playerBubble.vx += dx * 0.07 * dt * 60;
+    playerBubble.vy += dy * 0.07 * dt * 60;
+
+    playerBubble.vx *= 0.91;
+    playerBubble.vy *= 0.91;
+
+    playerBubble.x += playerBubble.vx;
+    playerBubble.y += playerBubble.vy;
+
+    // Velocity-based squash & stretch
+    const speed = Math.hypot(playerBubble.vx, playerBubble.vy);
+    playerBubble.stretchX = 1 + Math.min(speed * 0.02, 0.35);
+    playerBubble.stretchY = 1 - Math.min(speed * 0.015, 0.25);
+
+    // Dynamic Safe Margins & Wall Collision
+    // Consistent 39px margin matching pop radius
+    const wallMargin = playerBubble.radius + 15;
+    const waterTop = height * (1 - waterLevel) * 0.7 + 35;
+
+    if (playerBubble.x < wallMargin || playerBubble.x > width - wallMargin ||
+        playerBubble.y < waterTop || playerBubble.y > height - wallMargin) {
+        if (!shieldActive && playerBubble.invulnTimer <= 0) {
+            popPlayerBubble("Popped against the porcelain bath wall!");
+        } else {
+            // Soft bounce
+            if (playerBubble.x < wallMargin) { playerBubble.x = wallMargin; playerBubble.vx *= -0.5; }
+            if (playerBubble.x > width - wallMargin) { playerBubble.x = width - wallMargin; playerBubble.vx *= -0.5; }
+            if (playerBubble.y < waterTop) { playerBubble.y = waterTop; playerBubble.vy *= -0.5; }
+            if (playerBubble.y > height - wallMargin) { playerBubble.y = height - wallMargin; playerBubble.vy *= -0.5; }
+        }
+    }
+
+    // --- FAUCET DRIP HAZARDS ---
+    if (cfg.drops && Math.random() < 0.02 * dt * 60) {
+        faucetDrops.push({
+            x: width / 2 + (Math.random() * 60 - 30),
+            y: 45,
+            vy: 4 + Math.random() * 3,
+            targetY: height * 0.3 + Math.random() * (height * 0.5)
+        });
+    }
+
+    for (let i = faucetDrops.length - 1; i >= 0; i--) {
+        const drop = faucetDrops[i];
+        drop.y += drop.vy * speedFactor;
+
+        // Check player collision with falling drop
+        if (Math.hypot(drop.x - playerBubble.x, drop.y - playerBubble.y) < playerBubble.radius + 8) {
+            if (!shieldActive && playerBubble.invulnTimer <= 0) {
+                popPlayerBubble("Hit by a heavy faucet water drop!");
+            }
+            faucetDrops.splice(i, 1);
+            continue;
+        }
+
+        if (drop.y >= drop.targetY) {
+            waterRipples.push({ x: drop.x, y: drop.y, radius: 5, maxRadius: 50, alpha: 0.8 });
+            faucetDrops.splice(i, 1);
+        }
+    }
+
+    // --- TIME-SLOW PICKUP SPANNER ---
+    if (pickups.length === 0 && Math.random() < 0.003 * dt * 60) {
+        pickups.push({
+            x: Math.random() * (width - 160) + 80,
+            y: Math.random() * (height * 0.5) + 120,
+            radius: 16,
+            pulse: 0
+        });
+    }
+
+    pickups.forEach((pk, idx) => {
+        pk.pulse += 0.05;
+        if (Math.hypot(pk.x - playerBubble.x, pk.y - playerBubble.y) < playerBubble.radius + pk.radius) {
+            timeSlowTimer = 4.0; // 4s time slow
+            audio.playWin();
+            addScorePopup("TIME SLOW!", pk.x, pk.y, '#38bdf8');
+            pickups.splice(idx, 1);
+        }
+    });
+
+    // --- BOSS SOAP SWEEP (Levels 5 & 10) ---
+    if (cfg.boss) {
+        if (!bossSweep.active && Math.random() < 0.015 * dt * 60) {
+            bossSweep.active = true;
+            bossSweep.state = 'WARNING';
+            bossSweep.timer = 1.5; // 1.5s telegraph warning
+            bossSweep.warningLineY = height * (0.3 + Math.random() * 0.4);
+            bossSweep.width = 140;
+            bossSweep.height = 50;
+            bossSweep.x = -bossSweep.width;
+            bossSweep.y = bossSweep.warningLineY;
+        }
+
+        if (bossSweep.active) {
+            bossSweep.timer -= dt;
+            if (bossSweep.state === 'WARNING') {
+                if (bossSweep.timer <= 0) {
+                    bossSweep.state = 'SWEEPING';
+                    bossSweep.timer = 3.0;
+                }
+            } else if (bossSweep.state === 'SWEEPING') {
+                bossSweep.x += (width + bossSweep.width * 2) * (dt / 2.5);
+
+                // Collision check
+                if (playerBubble.x > bossSweep.x && playerBubble.x < bossSweep.x + bossSweep.width &&
+                    playerBubble.y > bossSweep.y && playerBubble.y < bossSweep.y + bossSweep.height) {
+                    if (!shieldActive && playerBubble.invulnTimer <= 0) {
+                        popPlayerBubble("Crushed by the Giant Soap Bar!");
+                    }
+                }
+
+                if (bossSweep.x > width + bossSweep.width) {
+                    bossSweep.active = false;
+                    bossSweep.state = 'NONE';
+                }
+            }
+        }
+    }
+
+    // --- WHIRLPOOLS & DRAINS ---
+    let closestDrainDist = Infinity;
+    whirlpools.forEach(wp => {
+        wp.rotation += 0.04 * speedFactor;
+        const wdx = wp.x - playerBubble.x;
+        const wdy = wp.y - playerBubble.y;
+        const dist = Math.max(Math.hypot(wdx, wdy), 1); // Guard against div-by-zero
+
+        if (dist < closestDrainDist) closestDrainDist = dist;
+
+        // Near-Miss check
+        if (dist > playerBubble.radius + wp.radius && dist < playerBubble.radius + wp.radius + 28) {
+            if (!wp.nearMissCooled) {
+                wp.nearMissCooled = true;
+                audio.playNearMiss();
+                comboMultiplier = Math.min(comboMultiplier + 1, 5);
+                comboTimer = 4.0;
+                score += 50 * comboMultiplier;
+                addScorePopup(`Close! x${comboMultiplier}`, playerBubble.x, playerBubble.y - 15, '#34d399');
+                updateHUD();
+            }
+        } else if (dist > playerBubble.radius + wp.radius + 45) {
+            wp.nearMissCooled = false;
+        }
+
+        if (dist < 220) {
+            const pull = ((220 - dist) / 220) * wp.strength * 2.2 * speedFactor;
+            playerBubble.vx += (wdx / dist) * pull;
+            playerBubble.vy += (wdy / dist) * pull;
+
+            if (dist < wp.radius * 0.65 && !shieldActive && playerBubble.invulnTimer <= 0) {
+                popPlayerBubble("Sucked down the tub drain!");
+            }
+        }
+    });
+
+    // Ambient Gurgle audio near drain
+    if (closestDrainDist < 200) {
+        audio.playGurgle((200 - closestDrainDist) / 200);
+    }
+
+    // --- BATH TOYS (Capped Speed & Damped Inside Water Region) ---
+    obstacles.forEach(obs => {
+        obs.x += obs.vx * speedFactor;
+        obs.y += obs.vy * speedFactor;
+        obs.tilt = Math.sin(performance.now() * 0.003 + obs.x) * 0.15;
+
+        // Speed Cap & Damping
+        const maxSpeed = 3.5;
+        const currentSpd = Math.hypot(obs.vx, obs.vy);
+        if (currentSpd > maxSpeed) {
+            obs.vx = (obs.vx / currentSpd) * maxSpeed;
+            obs.vy = (obs.vy / currentSpd) * maxSpeed;
+        }
+        obs.vx *= 0.98;
+        obs.vy *= 0.98;
+
+        // Constrain toys strictly inside visible water area
+        if (obs.x < obs.radius) { obs.x = obs.radius; obs.vx *= -1; }
+        if (obs.x > width - obs.radius) { obs.x = width - obs.radius; obs.vx *= -1; }
+        if (obs.y < waterTop + obs.radius) { obs.y = waterTop + obs.radius; obs.vy *= -1; }
+        if (obs.y > height - obs.radius) { obs.y = height - obs.radius; obs.vy *= -1; }
+
+        // Near-miss logic
+        const odx = obs.x - playerBubble.x;
+        const ody = obs.y - playerBubble.y;
+        const odist = Math.max(Math.hypot(odx, ody), 1);
+
+        if (odist > playerBubble.radius + obs.radius && odist < playerBubble.radius + obs.radius + 24) {
+            if (!obs.nearMissCooled) {
+                obs.nearMissCooled = true;
+                audio.playNearMiss();
+                comboMultiplier = Math.min(comboMultiplier + 1, 5);
+                comboTimer = 4.0;
+                score += 50 * comboMultiplier;
+                addScorePopup(`Close! x${comboMultiplier}`, playerBubble.x, playerBubble.y - 15, '#34d399');
+                updateHUD();
+            }
+        } else if (odist > playerBubble.radius + obs.radius + 40) {
+            obs.nearMissCooled = false;
+        }
+
+        // Toy Collision
+        if (odist < playerBubble.radius + obs.radius) {
+            if (!shieldActive && playerBubble.invulnTimer <= 0) {
+                popPlayerBubble(`Bumped into a heavy floating ${obs.type.toLowerCase()}!`);
+            } else {
+                obs.vx += (odx / odist) * 4;
+                obs.vy += (ody / odist) * 4;
+            }
+        }
+    });
+
+    // --- BABY BUBBLE RESCUES ---
+    for (let i = babyBubbles.length - 1; i >= 0; i--) {
+        const bb = babyBubbles[i];
+        bb.x += bb.vx;
+        bb.y += bb.vy;
+
+        if (bb.x < 30 || bb.x > width - 30) bb.vx *= -1;
+        if (bb.y < waterTop + 20 || bb.y > height - 30) bb.vy *= -1;
+
+        if (Math.hypot(bb.x - playerBubble.x, bb.y - playerBubble.y) < playerBubble.radius + bb.radius) {
+            // Rescue Success!
+            rescuedCount++;
+            comboMultiplier = Math.min(comboMultiplier + 1, 5);
+            comboTimer = 4.0;
+            audio.playRescue(1 + comboMultiplier * 0.15);
+
+            const pts = 100 * comboMultiplier;
+            score += pts;
+            addScorePopup(`RESCUED! +${pts} (x${comboMultiplier})`, bb.x, bb.y, '#f472b6');
+
+            // Burst particles
+            for (let k = 0; k < 8; k++) {
+                popParticles.push({
+                    x: bb.x, y: bb.y, radius: 2 + Math.random() * 3,
+                    vx: (Math.random() - 0.5) * 5, vy: (Math.random() - 0.5) * 5, alpha: 1.0
+                });
+            }
+
+            babyBubbles.splice(i, 1);
+            spawnBabyBubble(); // Respawn new baby
+            updateHUD();
+        }
+    }
+
+    // --- FOAM & POP PARTICLES UPDATES ---
+    foamParticles.forEach(p => {
+        p.x += p.vx;
+        p.y += p.vy;
+        if (p.x < 0) p.x = width;
+        if (p.x > width) p.x = 0;
+        if (p.y < 0) p.y = height;
+        if (p.y > height) p.y = 0;
+    });
+
+    for (let i = popParticles.length - 1; i >= 0; i--) {
+        const p = popParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.alpha -= 0.03;
+        if (p.alpha <= 0) popParticles.splice(i, 1);
+    }
+
+    for (let i = popups.length - 1; i >= 0; i--) {
+        const pop = popups[i];
+        pop.y += pop.vy;
+        pop.alpha -= 0.02;
+        if (pop.alpha <= 0) popups.splice(i, 1);
+    }
+
+    // Update Ripples & Bursts
+    for (let i = waterRipples.length - 1; i >= 0; i--) {
+        const rip = waterRipples[i];
+        rip.radius += 3;
+        rip.alpha -= 0.025;
+        if (rip.alpha <= 0) waterRipples.splice(i, 1);
+    }
+
+    for (let i = airBursts.length - 1; i >= 0; i--) {
+        const b = airBursts[i];
+        b.radius += 2.5;
+        b.alpha -= 0.04;
+        if (b.alpha <= 0) airBursts.splice(i, 1);
+    }
+
+    if (screenShake > 0) screenShake -= dt * 30;
+}
+
+// --- RENDERING ENGINE ---
+function render() {
+    ctx.save();
+    ctx.clearRect(0, 0, width, height);
+
+    if (screenShake > 0) {
+        ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+    }
+
+    const waterTop = height * (1 - waterLevel) * 0.7 + 35;
+
+    // 1. Outer Ceramic Rim & Background
+    ctx.fillStyle = '#0f172a';
+    ctx.fillRect(0, 0, width, height);
+
+    // 2. Water Area with Caustics / Light Rays
+    const tubGrad = ctx.createLinearGradient(0, waterTop, 0, height);
+    tubGrad.addColorStop(0, '#38bdf8');
+    tubGrad.addColorStop(0.5, '#0284c7');
+    tubGrad.addColorStop(1, '#0369a1');
+    ctx.fillStyle = tubGrad;
+
+    ctx.beginPath();
+    ctx.roundRect(15, Math.max(15, waterTop), width - 30, height - Math.max(30, waterTop + 15), 20);
+    ctx.fill();
+
+    // Water Surface Wave
+    ctx.strokeStyle = '#bae6fd';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (let x = 15; x <= width - 15; x += 12) {
+        const y = Math.max(18, waterTop + Math.sin(x * 0.03 + performance.now() * 0.003) * 5);
+        if (x === 15) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+
+    // Wall Danger Soft Glow Highlight
+    const wallMargin = playerBubble.radius + 39;
+    if (playerBubble.x < wallMargin || playerBubble.x > width - wallMargin ||
+        playerBubble.y < waterTop + 20 || playerBubble.y > height - wallMargin) {
+        ctx.strokeStyle = 'rgba(239, 68, 68, 0.4)';
+        ctx.lineWidth = 12;
+        ctx.strokeRect(20, Math.max(20, waterTop), width - 40, height - Math.max(40, waterTop + 20));
+    }
+
+    // 3. Faucet Graphic & Falling Drops
+    ctx.fillStyle = '#94a3b8';
+    ctx.fillRect(width / 2 - 20, 0, 40, 35);
+    ctx.fillStyle = '#64748b';
+    ctx.beginPath();
+    ctx.arc(width / 2, 35, 16, 0, Math.PI);
+    ctx.fill();
+
+    faucetDrops.forEach(drop => {
+        ctx.fillStyle = '#7dd3fc';
+        ctx.beginPath();
+        ctx.arc(drop.x, drop.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Telegraph ripple warning at destination
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.arc(drop.x, drop.targetY, 14, 0, Math.PI * 2);
+        ctx.stroke();
+    });
+
+    // 4. Boss Sweep Bar (If Active)
+    if (bossSweep.active) {
+        if (bossSweep.state === 'WARNING') {
+            ctx.strokeStyle = 'rgba(239, 68, 68, 0.7)';
+            ctx.lineWidth = 4;
+            ctx.setLineDash([8, 8]);
+            ctx.beginPath();
+            ctx.moveTo(0, bossSweep.warningLineY + 25);
+            ctx.lineTo(width, bossSweep.warningLineY + 25);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        } else if (bossSweep.state === 'SWEEPING') {
+            ctx.fillStyle = '#f472b6';
+            ctx.strokeStyle = '#fbcfe8';
+            ctx.lineWidth = 4;
+            ctx.beginPath();
+            ctx.roundRect(bossSweep.x, bossSweep.y, bossSweep.width, bossSweep.height, 12);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 14px system-ui';
+            ctx.fillText("MEGA SOAP", bossSweep.x + 20, bossSweep.y + 30);
+        }
+    }
+
+    // 5. Whirlpools
+    whirlpools.forEach(wp => {
+        ctx.save();
+        ctx.translate(wp.x, wp.y);
+        ctx.rotate(wp.rotation);
+
+        const grad = ctx.createRadialGradient(0, 0, 4, 0, 0, wp.radius);
+        grad.addColorStop(0, '#020617');
+        grad.addColorStop(0.6, '#0369a1');
+        grad.addColorStop(1, 'rgba(56, 189, 248, 0)');
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, wp.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+            ctx.rotate((Math.PI * 2) / 3);
+            ctx.moveTo(0, 0);
+            ctx.quadraticCurveTo(wp.radius * 0.4, wp.radius * 0.4, wp.radius, 0);
+        }
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // 6. Ripples & Air Bursts
+    waterRipples.forEach(r => {
+        ctx.strokeStyle = `rgba(255, 255, 255, ${r.alpha})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(r.x, r.y, r.radius, 0, Math.PI * 2);
+        ctx.stroke();
+    });
+
+    airBursts.forEach(b => {
+        ctx.strokeStyle = `rgba(186, 230, 253, ${b.alpha})`;
+        ctx.lineWidth = 3.5;
+        ctx.beginPath();
+        ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
+        ctx.stroke();
+    });
+
+    // 7. Time-Slow Pickup
+    pickups.forEach(pk => {
+        ctx.save();
+        ctx.translate(pk.x, pk.y);
+        const scale = 1 + Math.sin(pk.pulse) * 0.15;
+        ctx.scale(scale, scale);
+        ctx.fillStyle = '#38bdf8';
+        ctx.beginPath();
+        ctx.arc(0, 0, pk.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#fff';
+        ctx.font = 'bold 12px system-ui';
+        ctx.fillText("⏱️", -7, 4);
+        ctx.restore();
+    });
+
+    // 8. Bath Toys
+    obstacles.forEach(obs => {
+        ctx.save();
+        ctx.translate(obs.x, obs.y);
+        ctx.rotate(obs.tilt);
+
+        if (obs.type === 'DUCK') {
+            ctx.fillStyle = '#facc15';
+            ctx.beginPath();
+            ctx.arc(0, 0, obs.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(obs.radius * 0.5, -obs.radius * 0.4, obs.radius * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#f97316';
+            ctx.beginPath();
+            ctx.arc(obs.radius * 0.95, -obs.radius * 0.3, 4, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (obs.type === 'SOAP') {
+            ctx.fillStyle = '#f472b6';
+            ctx.beginPath();
+            ctx.roundRect(-obs.radius, -obs.radius * 0.65, obs.radius * 2, obs.radius * 1.3, 6);
+            ctx.fill();
+        } else {
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath();
+            ctx.arc(0, 0, obs.radius, 0, Math.PI);
+            ctx.fill();
+        }
+        ctx.restore();
+    });
+
+    // 9. Baby Bubbles
+    babyBubbles.forEach(bb => {
+        ctx.save();
+        ctx.translate(bb.x, bb.y);
+        ctx.fillStyle = 'rgba(244, 114, 182, 0.75)';
+        ctx.beginPath();
+        ctx.arc(0, 0, bb.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#fff';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.restore();
+    });
+
+    // 10. Foam & Pop Particles
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+    foamParticles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    popParticles.forEach(p => {
+        ctx.fillStyle = `rgba(186, 230, 253, ${p.alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+    });
+
+    // 11. Player Bubble (Squash, Stretch, Iridescent Rainbow Shimmer)
+    ctx.save();
+    ctx.translate(playerBubble.x, playerBubble.y);
+
+    // Flashing invulnerability indicator
+    if (playerBubble.invulnTimer > 0 && Math.floor(performance.now() / 100) % 2 === 0) {
+        ctx.globalAlpha = 0.4;
+    }
+
+    ctx.scale(playerBubble.stretchX, playerBubble.stretchY);
+
+    if (shieldActive || playerBubble.hasBeginnerShield) {
+        ctx.strokeStyle = '#34d399';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.arc(0, 0, playerBubble.radius + 6, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+
+    // Iridescent Shimmer Gradient
+    const shimmerAngle = performance.now() * 0.002;
+    const bGrad = ctx.createRadialGradient(
+        Math.cos(shimmerAngle) * 8, Math.sin(shimmerAngle) * 8, 2,
+        0, 0, playerBubble.radius
+    );
+    bGrad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+    bGrad.addColorStop(0.3, 'rgba(186, 230, 253, 0.6)');
+    bGrad.addColorStop(0.7, 'rgba(244, 114, 182, 0.4)');
+    bGrad.addColorStop(1, 'rgba(56, 189, 248, 0.8)');
+
+    ctx.fillStyle = bGrad;
+    ctx.beginPath();
+    ctx.arc(0, 0, playerBubble.radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+
+    // Highlight reflection
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+    ctx.beginPath();
+    ctx.arc(-playerBubble.radius * 0.35, -playerBubble.radius * 0.35, playerBubble.radius * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.restore();
+
+    // 12. Floating Popups (Score/Combo text)
+    popups.forEach(pop => {
+        ctx.fillStyle = pop.color;
+        ctx.globalAlpha = pop.alpha;
+        ctx.font = 'bold 16px system-ui';
+        ctx.fillText(pop.text, pop.x - 20, pop.y);
+        ctx.globalAlpha = 1.0;
+    });
+
+    // 13. Pointer Line
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.25)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(playerBubble.x, playerBubble.y);
+    ctx.lineTo(targetPos.x, targetPos.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.restore();
+}
+
+// --- MAIN LOOP ---
+function gameLoop(now) {
+    const dt = Math.min(0.1, (now - lastTime) / 1000); // Frame-rate independent dt capped at 0.1s
+    lastTime = now;
+
+    update(dt);
+    render();
+
+    requestAnimationFrame(gameLoop);
+}
+
+// --- DEBUG SELF-CHECK SUITE (?test=1) ---
+function runDebugSelfCheck() {
+    console.log("=== RUNNING BUBBLE RESCUE HEADLESS DEBUG SUITE ===");
+    const dbgOverlay = document.getElementById('debug-overlay');
+    dbgOverlay.classList.remove('hidden');
+    dbgOverlay.innerText = "Running Debug Test Suite...";
+
+    try {
+        width = 800;
+        height = 600;
+        initLevel(0);
+        gameState = 'PLAYING';
+
+        // Simulate 300 iterations
+        for (let frame = 0; frame < 300; frame++) {
+            targetPos.x = 400 + Math.sin(frame * 0.1) * 200;
+            targetPos.y = 300 + Math.cos(frame * 0.1) * 150;
+
+            if (frame === 50) triggerNudge();
+            if (frame === 100) triggerSplash();
+            if (frame === 150) triggerShield();
+
+            update(0.016);
+        }
+
+        console.log("DEBUG TEST PASSED: 300 frames simulated without errors.");
+        dbgOverlay.innerText = "DEBUG TEST: PASS (300 Frames Executed Cleanly)";
+        dbgOverlay.style.borderColor = "#22c55e";
+    } catch (err) {
+        console.error("DEBUG TEST FAILED:", err);
+        dbgOverlay.innerText = `DEBUG TEST: FAIL (${err.message})`;
+        dbgOverlay.style.borderColor = "#ef4444";
+        dbgOverlay.style.color = "#ef4444";
+    }
+}
+
+// --- INIT ON LOAD ---
+window.onload = () => {
+    resizeCanvas();
+    updateHUD();
+
+    // Check URL parameters for ?test=1
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('test') === '1') {
+        runDebugSelfCheck();
+    }
+
+    requestAnimationFrame(gameLoop);
+};
+</script>
+
+<!-- PadPort controller layer -->
+<script>
+window.PADPORT_CFG = {
+  hint: "Left stick moves \u00b7 A nudge \u00b7 B splash \u00b7 Y shield \u00b7 Start pause",
+  isTitle: function () { return typeof gameState !== "undefined" && gameState === "MENU"; },
+  titleStart: function (P) { P.click(document.getElementById("start-btn")); },
+  isMenu: function () { return typeof gameState !== "undefined" && (gameState === "LEVEL_CLEAR" || gameState === "GAME_OVER" || gameState === "PAUSED"); },
+  menuRoot: function () { var m = document.getElementById("msg-overlay"); return m && !m.classList.contains("hidden") ? m : null; },
+  menuDefault: "#msg-btn",
+  menuStart: function () { if (gameState === "PAUSED") togglePause(); else { var b = document.getElementById("msg-btn"); if (b) b.click(); } },
+  menuBack: function () { if (gameState === "PAUSED") togglePause(); },
+  play: function (P, st, E) {
+    if (st.lx || st.ly) {
+      var r = 170;
+      targetPos.x = Math.max(40, Math.min(width - 40, playerBubble.x + st.lx * r));
+      targetPos.y = Math.max(40, Math.min(height - 40, playerBubble.y + st.ly * r));
+      this._moving = true;
+    } else if (this._moving) {
+      this._moving = false; targetPos.x = playerBubble.x; targetPos.y = playerBubble.y;
+    }
+    if (E.DU || E.DD || E.DL || E.DR) {}
+    var dx = (st.DR ? 1 : 0) - (st.DL ? 1 : 0), dy = (st.DD ? 1 : 0) - (st.DU ? 1 : 0);
+    if (dx || dy) { targetPos.x = Math.max(40, Math.min(width - 40, playerBubble.x + dx * 150)); targetPos.y = Math.max(40, Math.min(height - 40, playerBubble.y + dy * 150)); this._moving = true; }
+    if (E.A || E.RT) P.tap("Space");
+    if (E.B || E.LT || E.X) P.tap("ShiftLeft");
+    if (E.Y || E.RB || E.LB) P.tap("KeyS");
+    if (E.START) P.tap("Escape");
+  }
+};
+
+</script>
+<script>
+/* PadPort controller layer: Xbox / standard gamepad support for keyboard-and-pointer games.
+   Polls every navigator.getGamepads() slot each frame plus a timer fallback, accepts any non-null slot,
+   reads buttons as objects / numbers / numeric strings, triggers from buttons 6/7 or axes 4+,
+   0.2 stick deadzone, and turns pad input into the game's existing keyboard / pointer / button actions. */
+(function () {
+  "use strict";
+  var CFG = window.PADPORT_CFG || {};
+  var DZ = 0.2;
+  var NONE = "Controller: none detected \u2014 press any button";
+  var S = { pad: null, prev: {}, held: {}, polls: 0, err: "", last: 0, status: NONE, focusEl: null,
+            navT: 0, navDir: "", cursor: null, cursorLast: 0, seen: false };
+  window.PADPORT = S;
+
+  function num(v) {
+    if (typeof v === "string") v = +v;
+    if (typeof v !== "number" || isNaN(v)) return 0;
+    return v > 1 ? 1 : (v < -1 ? -1 : v);
+  }
+  function btn(pad, i) {
+    var b = null;
+    try { b = pad.buttons ? pad.buttons[i] : null; } catch (e) { b = null; }
+    if (b == null) return { pressed: false, value: 0 };
+    if (typeof b === "number" || typeof b === "string") { var n = num(b); return { pressed: n >= 0.5, value: n }; }
+    var value = 0, pressed = false;
+    try {
+      if (typeof b.value === "number") value = b.value;
+      else if (typeof b.value === "string" && !isNaN(+b.value)) value = +b.value;
+      else if (b.pressed) value = 1;
+    } catch (e2) {}
+    try { pressed = !!b.pressed; } catch (e3) {}
+    if (isNaN(value)) value = 0;
+    return { pressed: pressed || value >= 0.5, value: value };
+  }
+  function axes(pad) {
+    var a = [], raw = null, n = 0;
+    try { raw = pad.axes; n = raw ? (raw.length || 0) : 0; } catch (e) { n = 0; }
+    if (n > 16) n = 16;
+    for (var i = 0; i < n; i++) { var v = 0; try { v = raw[i]; } catch (e2) {} a.push(num(v)); }
+    while (a.length < 4) a.push(0);
+    return a;
+  }
+  function listPads() {
+    var out = [], raw = null;
+    try { if (typeof navigator.getGamepads === "function") raw = navigator.getGamepads(); }
+    catch (e) { S.err = String(e && e.message || e); return out; }
+    if (!raw) return out;
+    var n = 4;
+    try { if (typeof raw.length === "number" && raw.length > n) n = raw.length; } catch (e2) {}
+    if (n > 8) n = 8;
+    for (var i = 0; i < n; i++) { var p = null; try { p = raw[i]; } catch (e3) {} if (p) out.push(p); }
+    return out;
+  }
+  function choose(list) {
+    var std = null;
+    for (var i = 0; i < list.length; i++) if (!std && list[i].mapping === "standard") std = list[i];
+    return std || list[0] || null;
+  }
+  function dz(x, y) {
+    var m = Math.sqrt(x * x + y * y);
+    if (m < DZ) return { x: 0, y: 0, m: 0 };
+    var k = Math.min(1, (m - DZ) / (1 - DZ)) / m;
+    return { x: x * k, y: y * k, m: Math.min(1, (m - DZ) / (1 - DZ)) };
+  }
+  function read(pad) {
+    var a = axes(pad), st = {}, i;
+    var std = pad.mapping === "standard";
+    var L = dz(a[0], a[1]);
+    var rx = a[2], ry = a[3];
+    if (rx <= -0.85 && !std) rx = 0;
+    if (ry <= -0.85 && !std) ry = 0;
+    var R = dz(rx, ry);
+    st.lx = L.x; st.ly = L.y; st.rx = R.x; st.ry = R.y;
+    st.A = btn(pad, 0).pressed; st.B = btn(pad, 1).pressed; st.X = btn(pad, 2).pressed; st.Y = btn(pad, 3).pressed;
+    st.LB = btn(pad, 4).pressed; st.RB = btn(pad, 5).pressed;
+    var lt = btn(pad, 6).value, rt = btn(pad, 7).value;
+    if (a.length > 4 && a[4] > 0.55) lt = Math.max(lt, a[4]);
+    for (i = 5; i < a.length; i++) if (a[i] > 0.55) rt = Math.max(rt, a[i]);
+    st.LTv = lt; st.RTv = rt; st.LT = lt >= 0.5; st.RT = rt >= 0.5;
+    st.BACK = btn(pad, 8).pressed; st.START = btn(pad, 9).pressed;
+    st.DU = btn(pad, 12).pressed; st.DD = btn(pad, 13).pressed; st.DL = btn(pad, 14).pressed; st.DR = btn(pad, 15).pressed;
+    st.up = st.DU || L.y < -0.5; st.down = st.DD || L.y > 0.5; st.left = st.DL || L.x < -0.5; st.right = st.DR || L.x > 0.5;
+    var any = false, cnt = 0, held = [];
+    try { cnt = pad.buttons ? pad.buttons.length : 0; } catch (e) {}
+    if (cnt > 24) cnt = 24;
+    for (i = 0; i < cnt; i++) if (btn(pad, i).pressed) { any = true; held.push(i); }
+    st.any = any; st.heldList = held;
+    return st;
+  }
+
+  /* ---- synthetic input helpers ---- */
+  var KEYCODES = { ArrowLeft: 37, ArrowUp: 38, ArrowRight: 39, ArrowDown: 40, Space: 32, Enter: 13, Escape: 27,
+    ShiftLeft: 16, ShiftRight: 16, Tab: 9, Backspace: 8 };
+  function keyFor(code) {
+    if (code === "Space") return " ";
+    if (code === "Enter") return "Enter";
+    if (code === "Escape") return "Escape";
+    if (code.indexOf("Arrow") === 0) return code;
+    if (code.indexOf("Shift") === 0) return "Shift";
+    if (code.indexOf("Key") === 0) return code.slice(3).toLowerCase();
+    if (code.indexOf("Digit") === 0) return code.slice(5);
+    return code;
+  }
+  function kc(code) {
+    if (KEYCODES[code]) return KEYCODES[code];
+    if (code.indexOf("Key") === 0) return code.charCodeAt(3);
+    if (code.indexOf("Digit") === 0) return code.charCodeAt(5);
+    return 0;
+  }
+  function key(type, code, repeat) {
+    var k = keyFor(code), c = kc(code), ev;
+    try {
+      ev = new KeyboardEvent(type, { key: k, code: code, keyCode: c, which: c, bubbles: true, cancelable: true, repeat: !!repeat });
+    } catch (e) { ev = document.createEvent("Event"); ev.initEvent(type, true, true); }
+    try { if (ev.keyCode !== c) Object.defineProperty(ev, "keyCode", { get: function () { return c; } }); } catch (e2) {}
+    try { if (ev.which !== c) Object.defineProperty(ev, "which", { get: function () { return c; } }); } catch (e3) {}
+    try { if (ev.key !== k) Object.defineProperty(ev, "key", { get: function () { return k; } }); } catch (e4) {}
+    try { if (ev.code !== code) Object.defineProperty(ev, "code", { get: function () { return code; } }); } catch (e5) {}
+    var t = (CFG.keyTarget && CFG.keyTarget()) || document.body || document.documentElement;
+    t.dispatchEvent(ev);
+  }
+  function tap(code) { key("keydown", code); key("keyup", code); }
+  function hold(name, code, on) {
+    var id = name + "|" + code;
+    if (on && !S.held[id]) { S.held[id] = code; key("keydown", code); }
+    else if (!on && S.held[id]) { delete S.held[id]; key("keyup", code); }
+  }
+  function releaseAll() { for (var id in S.held) { var c = S.held[id]; delete S.held[id]; key("keyup", c); } }
+  function pointer(type, x, y, target) {
+    var ev, t = target;
+    if (!t && CFG.pointerTarget) t = CFG.pointerTarget(x, y);
+    if (!t) { try { t = document.elementFromPoint(x, y); } catch (e0) { t = null; } }
+    if (!t) t = document.body || window;
+    var o = { clientX: x, clientY: y, screenX: x, screenY: y, bubbles: true, cancelable: true, pointerId: 77, pointerType: "mouse", isPrimary: true, button: 0, buttons: type === "pointerup" ? 0 : (S.mouseDown ? 1 : 0) };
+    try { ev = new PointerEvent(type, o); } catch (e) { ev = new MouseEvent(type.replace("pointer", "mouse"), o); }
+    t.dispatchEvent(ev);
+    if (type.indexOf("pointer") === 0) {
+      var m; try { m = new MouseEvent(type.replace("pointer", "mouse"), o); t.dispatchEvent(m); } catch (e2) {}
+    }
+  }
+  function click(el) {
+    if (!el) return false;
+    try { if (typeof el.focus === "function") el.focus({ preventScroll: true }); } catch (e) {}
+    var r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+    try { pointer("pointerdown", x, y, el); pointer("pointerup", x, y, el); } catch (e2) {}
+    try { el.click(); } catch (e3) {}
+    return true;
+  }
+  function visible(el) {
+    if (!el || !el.getBoundingClientRect) return false;
+    var r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return false;
+    if (r.bottom < 0 || r.right < 0 || r.top > innerHeight || r.left > innerWidth) return false;
+    var n = el;
+    while (n && n.nodeType === 1) {
+      var s = getComputedStyle(n);
+      if (s.display === "none" || s.visibility === "hidden" || +s.opacity < 0.05) return false;
+      n = n.parentElement;
+    }
+    if (el.disabled) return false;
+    return true;
+  }
+  function $(sel) { return document.querySelector(sel); }
+  function $$(sel) { return Array.prototype.slice.call(document.querySelectorAll(sel)); }
+
+  /* ---- menu navigation (d-pad / stick moves a highlight, A clicks, B backs out) ---- */
+  function menuItems() {
+    var sel = CFG.menuItems || "button, [role=button], a[href], input[type=range], select, .btn";
+    var root = CFG.menuRoot ? CFG.menuRoot() : document;
+    if (!root) return [];
+    var list = Array.prototype.slice.call(root.querySelectorAll(sel));
+    if (CFG.menuFilter) list = list.filter(CFG.menuFilter);
+    return list.filter(visible);
+  }
+  function setFocus(el) {
+    if (S.focusEl && S.focusEl !== el) S.focusEl.classList.remove("padport-focus");
+    S.focusEl = el;
+    if (el) { el.classList.add("padport-focus"); try { el.focus({ preventScroll: true }); } catch (e) {} }
+  }
+  function moveFocus(dir) {
+    var items = menuItems();
+    if (!items.length) return;
+    var cur = S.focusEl && items.indexOf(S.focusEl) >= 0 ? S.focusEl : null;
+    if (!cur) {
+      var pref = null;
+      if (CFG.menuDefault) for (var j = 0; j < items.length && !pref; j++) if (items[j].matches && items[j].matches(CFG.menuDefault)) pref = items[j];
+      setFocus(pref || items[0]); return;
+    }
+    var r0 = cur.getBoundingClientRect(), cx = r0.left + r0.width / 2, cy = r0.top + r0.height / 2;
+    var best = null, bestS = 1e9;
+    items.forEach(function (el) {
+      if (el === cur) return;
+      var r = el.getBoundingClientRect(), x = r.left + r.width / 2, y = r.top + r.height / 2;
+      var dx = x - cx, dy = y - cy, main, side;
+      if (dir === "up") { main = -dy; side = Math.abs(dx); }
+      else if (dir === "down") { main = dy; side = Math.abs(dx); }
+      else if (dir === "left") { main = -dx; side = Math.abs(dy); }
+      else { main = dx; side = Math.abs(dy); }
+      if (main <= 4) return;
+      var sc = main + side * 2.2;
+      if (sc < bestS) { bestS = sc; best = el; }
+    });
+    if (!best) {
+      var i = items.indexOf(cur);
+      if (dir === "down" || dir === "right") best = items[(i + 1) % items.length];
+      else best = items[(i - 1 + items.length) % items.length];
+    }
+    setFocus(best);
+  }
+  function adjustRange(el, d) {
+    if (!el || el.type !== "range") return false;
+    var step = +el.step || ((+el.max - +el.min) / 20) || 1;
+    el.value = Math.max(+el.min, Math.min(+el.max, +el.value + d * step));
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+    return true;
+  }
+
+  /* ---- status line ---- */
+  var bar = null;
+  function ensureBar() {
+    if (bar || !document.body) return;
+    var css = document.createElement("style");
+    css.textContent = "#padport-status{position:fixed;left:50%;bottom:max(10px,env(safe-area-inset-bottom));transform:translateX(-50%);" +
+      "z-index:2147483646;pointer-events:none;font:600 13px/1.35 -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;" +
+      "color:#fff;background:rgba(10,12,20,.78);border:1px solid rgba(255,255,255,.28);border-radius:999px;padding:6px 14px;" +
+      "max-width:92vw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-align:center;box-shadow:0 2px 10px rgba(0,0,0,.35)}" +
+      "#padport-status small{display:block;font-weight:500;font-size:11px;opacity:.75}" +
+      "#padport-status.ok{border-color:rgba(120,255,160,.6)}" +
+      ".padport-focus{outline:3px solid #ffd23f !important;outline-offset:3px !important;box-shadow:0 0 0 6px rgba(255,210,63,.35) !important}";
+    document.head.appendChild(css);
+    bar = document.createElement("div");
+    bar.id = "padport-status";
+    bar.setAttribute("aria-live", "polite");
+    bar.textContent = NONE;
+    document.body.appendChild(bar);
+  }
+  var lastText = "";
+  function paint(pad, st) {
+    ensureBar();
+    if (!bar) return;
+    var show = CFG.isTitle ? !!CFG.isTitle() : true;
+    if (!show && CFG.showWhenMenu && isMenu()) show = true;
+    bar.style.display = show ? "" : "none";
+    if (!show) return;
+    var main, sub = "";
+    if (pad) {
+      var id = ""; try { id = String(pad.id || "Gamepad"); } catch (e) { id = "Gamepad"; }
+      if (id.length > 60) id = id.slice(0, 60) + "\u2026";
+      main = "Controller: " + id + " \u2713";
+      sub = (CFG.hint || "Press A or Start to play") + " \u00b7 buttons: " + ((st && st.heldList.join(" ")) || "none");
+    } else {
+      main = NONE;
+      if (typeof navigator.getGamepads !== "function") sub = "This browser has no gamepad support.";
+      else sub = "Pair the pad in Bluetooth settings, then press A. Keyboard / touch still work.";
+    }
+    if (S.err) sub = "Input error: " + S.err;
+    S.status = main;
+    var t = main + "|" + sub;
+    if (t !== lastText) { lastText = t; bar.innerHTML = ""; bar.appendChild(document.createTextNode(main)); var s = document.createElement("small"); s.textContent = sub; bar.appendChild(s); }
+    bar.className = pad ? "ok" : "";
+  }
+
+  function isMenu() { return CFG.isMenu ? !!CFG.isMenu() : false; }
+
+  var api = {
+    key: key, tap: tap, hold: hold, releaseAll: releaseAll, pointer: pointer, click: click, visible: visible, $: $, $$: $$,
+    moveFocus: moveFocus, menuItems: menuItems, setFocus: setFocus
+  };
+  S.api = api;
+
+  function edge(st, name) { return st[name] && !S.prev[name]; }
+
+  function poll() {
+    S.polls++;
+    S.last = Date.now();
+    var pad = null, st = null;
+    try {
+      pad = choose(listPads());
+      S.pad = pad;
+      if (pad) { st = read(pad); S.seen = true; }
+      paint(pad, st);
+      if (!st) { releaseAll(); S.prev = {}; return; }
+      var E = {}; ["A", "B", "X", "Y", "LB", "RB", "LT", "RT", "BACK", "START", "up", "down", "left", "right", "any"].forEach(function (n) { E[n] = edge(st, n); });
+      var gate = CFG.titleGate || CFG.isTitle;
+      var nowT = Date.now(), dt = Math.min(0.1, Math.max(0.001, (nowT - (S.tPrev || nowT)) / 1000)); S.tPrev = nowT; st.dt = dt;
+      if (gate && gate() && E.any && CFG.titleStart) {
+        releaseAll();
+        CFG.titleStart(api, st, E);
+      } else if (isMenu()) {
+        releaseAll();
+        var now = Date.now(), dir = st.up ? "up" : st.down ? "down" : st.left ? "left" : st.right ? "right" : "";
+        if (dir && (dir !== S.navDir || now - S.navT > 260)) {
+          if ((dir === "left" || dir === "right") && S.focusEl && S.focusEl.type === "range") adjustRange(S.focusEl, dir === "left" ? -1 : 1);
+          else moveFocus(dir);
+          S.navT = now;
+        }
+        S.navDir = dir;
+        if (S.focusEl && !visible(S.focusEl)) setFocus(null);
+        if (E.A) {
+          var f = S.focusEl;
+          if (!f) { moveFocus("down"); f = S.focusEl; }
+          if (f) { if (CFG.menuActivate) CFG.menuActivate(api, f); else click(f); }
+        }
+        if (E.B && CFG.menuBack) CFG.menuBack(api);
+        if (E.START && CFG.menuStart) CFG.menuStart(api);
+      } else {
+        if (S.focusEl) setFocus(null);
+        S.navDir = "";
+        if (CFG.play) CFG.play(api, st, E);
+      }
+      S.prev = st;
+    } catch (e) {
+      S.err = String(e && e.message || e);
+      try { paint(pad, st); } catch (e2) {}
+    }
+  }
+  function frame() { poll(); requestAnimationFrame(frame); }
+  function start() {
+    ensureBar();
+    requestAnimationFrame(frame);
+    setInterval(function () { if (Date.now() - S.last > 120) poll(); }, 50);
+    window.addEventListener("gamepadconnected", function () { poll(); });
+    window.addEventListener("gamepaddisconnected", function () { poll(); });
+    window.addEventListener("blur", function () { releaseAll(); });
+  }
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start); else start();
+})();
+
+</script>
+</body>
+</html>
